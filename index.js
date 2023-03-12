@@ -7,64 +7,30 @@ const bodyParser = require('body-parser');
 const mysql = require('mysql2');
 const _ = require("lodash");
 const config = require("./config");
+const init = require("../kbot/lib/utils/connection");
 
-class SQL {
-    constructor(auth) {
-        if (!auth) {
-            auth = {
-                host: config.db_host,
-                user: config.db_user,
-                password: config.db_pass,
-                database: config.db_name,
-                port: '/var/run/mysqld/mysqld.sock'
-            }
-        }
+const kb = new init.IRC();
+kb.sqlConnect();
 
-        this.auth = auth;
-    }
-
-    connect() {
-        this.con = mysql.createConnection(this.auth);
-
-        this.con.on('error', (err) => {
-            if (err.fatal) {
-                console.log(err)
-            }
-        });
-    }
-
-    async query(query, data = []) {
-        try {
-            const response = await this.con.promise().execute(mysql.format(query, data));
-            const result = _.get(response, "0");
-            this.con.unprepare(query);
-            return result;
-        } catch (err) {
-            console.log(err)
-        }
-    }
-}
-
-const sql = new SQL();
 const app = express();
-
-sql.connect();
 
 app.enable('trust proxy');
 app.set('trust proxy', 1);
 app.use(bodyParser.json());
 
-app.put("/api/university-project", async (req, res) => {
-    const {temperature, humudity, pm10, pm25, pm01, auth} = req.query;
+app.get("/api/university-project", async (req, res) => {
+    const {temperature, humidity, pm10, pm25, pm01, auth} = req.query;
 
     if (auth !== config.auth) {
-        res.status(401);
+        res.sendStatus(401);
         return;
     }
 
-    await sql.query(
+    await kb.query(
         "INSERT INTO weather_data (temperature, humidity, pm10, pm25, pm01) VALUES (?, ?, ? ,? ,?)",
-        [temperature, humudity, pm10, pm25, pm01]);
+        [temperature, humidity, pm10, pm25, pm01]);
+
+   res.sendStatus(200);
 });
 
-app.listen(process.env.PORT || 8080, '0.0.0.0');
+app.listen(process.env.PORT || 8090, '0.0.0.0');
